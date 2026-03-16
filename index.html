@@ -2,67 +2,52 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vigil - Amulet Live Hub</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Vigil - Claims Management</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #0b0e14; color: #fff; margin: 0; padding: 20px; }
-        .dashboard-container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 380px 1fr; gap: 20px; height: 90vh; }
-        .sidebar { background: #161b22; padding: 20px; border-radius: 16px; border: 1px solid #30363d; text-align: center; display: flex; flex-direction: column; }
-        .hw-box { background: #0d1117; padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; font-size: 11px; border: 1px solid #30363d; }
-        #vortex-svg { transition: 0.5s ease; animation: rotate 20s linear infinite; }
-        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .glitch { animation: shake 0.2s infinite; stroke: #ff4d4d !important; filter: drop-shadow(0 0 10px #ff4d4d); }
-        @keyframes shake { 0%, 100% { transform: translate(0); } 50% { transform: translate(-2px, 2px); } }
-        #map { height: 100%; border-radius: 16px; border: 1px solid #30363d; }
-        .status-header { font-size: 1.4em; font-weight: bold; margin: 15px 0; }
-        .control-group { text-align: left; background: #0d1117; padding: 15px; border-radius: 8px; margin-top: auto; }
-        input[type="range"] { width: 100%; accent-color: #58a6ff; margin-top: 10px; }
-        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .dashboard-container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        .sidebar { background: #161b22; padding: 20px; border-radius: 16px; border: 1px solid #30363d; text-align: center; }
+        .card { background: #161b22; padding: 15px; border-radius: 12px; border: 1px solid #30363d; height: 350px; overflow-y: auto; }
+        .input-field { width: 90%; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; color: white; }
+        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; color: white; }
+        .btn-green { background: #238636; }
+        .btn-blue { background: #0056b3; }
+        .item { font-size: 11px; padding: 8px; border-bottom: 1px solid #21262d; }
     </style>
 </head>
 <body>
 <div class="dashboard-container">
     <div class="sidebar">
-        <h3 style="color: #58a6ff;">VIGIL CORE</h3>
-        <div class="hw-box"><span>RING: <span style="color:#3fb950">PAIRED</span></span><span>BATTERY: 88%</span></div>
-        <svg id="vortex-svg" viewBox="0 0 100 100" width="220" height="220">
-            <polygon id="vortex-shape" points="50,5 90,25 100,70 70,95 30,95 0,70 10,25" fill="rgba(88, 255, 255, 0.1)" stroke="#58a6ff" stroke-width="2" />
-        </svg>
-        <div id="status-text" class="status-header">SYSTEM READY</div>
-        <div class="control-group">
-            <label style="font-size: 11px; color: #8b949e;">VITAL FLOW (BRPM)</label>
-            <input type="range" id="brpm" min="0" max="30" value="14">
-            <label style="font-size: 11px; color: #8b949e; margin-top: 10px; display: block;">STRESS FREQUENCY (GSR)</label>
-            <input type="range" id="stress" min="0" max="100" value="40">
-        </div>
-        <button class="btn" style="background: #da3633; color: white;" onclick="setHotZone()">Simulate Hot Zone Entry</button>
+        <h3 style="color: #58a6ff;">VIGIL CLAIMS</h3>
+        <label style="font-size: 11px; color: #8b949e;">CLIENT NAME</label>
+        <input type="text" id="client_name" class="input-field" placeholder="Enter Full Name">
+        <label style="font-size: 11px; color: #8b949e;">TRIP DISTANCE (MILES)</label>
+        <input type="number" id="miles" class="input-field" value="5">
+        <button class="btn btn-green" onclick="logTrip()">Authorize & Log Trip</button>
+        <hr style="border: 1px solid #30363d; margin: 20px 0;">
+        <button class="btn btn-blue" onclick="window.open('http://localhost:8000/api/export-csv/')">📥 Generate Medicaid CSV</button>
     </div>
-    <div id="map"></div>
+    <div class="main">
+        <div class="card">
+            <h4>💰 Claims History</h4>
+            <div id="billing-list"></div>
+        </div>
+    </div>
 </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    var map = L.map('map', {zoomControl: false}).setView([39.9612, -82.9988], 15);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-    var marker = L.marker([39.9612, -82.9988]).addTo(map);
-    var curLat = 39.9600;
-    function setHotZone() { curLat = 39.9612; }
-    setInterval(async () => {
-        const brpm = document.getElementById('brpm').value;
-        const stress = document.getElementById('stress').value;
-        const shape = document.getElementById('vortex-shape');
-        const status = document.getElementById('status-text');
-        const scale = 1 + (stress / 200); // VORTEX EXPANSION LOGIC
-        shape.style.transform = `scale(${scale})`;
-        shape.style.transformOrigin = "center";
-        try {
-            const res = await fetch(`http://localhost:8000/api/status/?brpm=${brpm}&stress=${stress}&lat=${curLat}`);
-            const data = await res.json();
-            status.innerText = data.alert;
-            if (data.color === "RED") { shape.classList.add('glitch'); status.style.color = "#ff4d4d"; shape.setAttribute('stroke', "#ff4d4d"); }
-            else if (data.color === "YELLOW") { shape.classList.remove('glitch'); status.style.color = "#d29922"; shape.setAttribute('stroke', "#d29922"); }
-            else { shape.classList.remove('glitch'); status.style.color = "#3fb950"; shape.setAttribute('stroke', "#58a6ff"); }
-        } catch (e) { status.innerText = "OFFLINE"; }
-    }, 1000);
+    async function logTrip() {
+        const name = document.getElementById('client_name').value;
+        const miles = document.getElementById('miles').value;
+        if(!name) { alert("Please enter a client name."); return; }
+        await fetch(`http://localhost:8000/api/billing/?client_name=${name}&miles=${miles}`, {method:'POST'});
+        loadHistory();
+    }
+    async function loadHistory() {
+        const res = await fetch('http://localhost:8000/api/history/');
+        const data = await res.json();
+        document.getElementById('billing-list').innerHTML = data.billing.map(b => `<div class="item"><strong>${b.client}</strong> | ID: ${b.receipt} | ${b.timestamp} | ${b.miles} mi</div>`).join('');
+    }
+    loadHistory();
 </script>
 </body>
 </html>

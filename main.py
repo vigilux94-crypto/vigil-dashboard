@@ -1,10 +1,11 @@
-cat << 'EOF' > main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from datetime import datetime
 import uvicorn
-import smtplib
-from email.message import EmailMessage
+import json
+import os
+import io
 
 app = FastAPI()
 
@@ -15,51 +16,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONFIGURATION (PASTE YOUR APP PASSWORD BELOW) ---
-SENDER_EMAIL = "brokenladderrecoverysystems@gmail.com"
-APP_PASSWORD = "Sophia2012!" 
-COUNSELOR_EMAIL = "brokenladderrecoverysystems@gmail.com"
-# -----------------------------------------------------
+DB_FILE = "vigil_history.json"
 
-last_alert_time = None
+if not os.path.exists(DB_FILE):
+    with open(DB_FILE, "w") as f:
+        json.dump({"alerts": [], "billing": []}, f)
 
-def dispatch_real_email(alert_type, value):
-    global last_alert_time
-    now = datetime.now()
-    # Spam filter: One email per minute
-    if last_alert_time != now.strftime("%H:%M"):
-        try:
-            msg = EmailMessage()
-            msg.set_content(f"VIGIL SYSTEM ALERT\n\nClient: Toby P.\nType: {alert_type}\nDetail: {value}\nTime: {now.strftime('%Y-%m-%d %H:%M:%S')}\n\nPlease check the dashboard immediately.")
-            msg['Subject'] = f"🚨 VIGIL {alert_type} ALERT"
-            msg['From'] = SENDER_EMAIL
-            msg['To'] = COUNSELOR_EMAIL
-
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                smtp.login(SENDER_EMAIL, APP_PASSWORD)
-                smtp.send_message(msg)
-            print(f"✅ EMAIL DISPATCHED: {alert_type}")
-            last_alert_time = now.strftime("%H:%M")
-        except Exception as e:
-            print(f"❌ MAIL ERROR: {e}")
+def save_to_db(category, entry):
+    with open(DB_FILE, "r") as f:
+        data = json.load(f)
+    data[category].insert(0, entry)
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f)
 
 @app.get("/api/status/")
 def check_status(brpm: int, stress: int, lat: float = 0.0):
-    res = {"color": "GREEN", "alert": "VORTEX STABLE", "hw": "PAIRED", "bat": 88}
- # 1. Critical Overdose Logic
+    res = {"color": "GREEN", "alert": "VORTEX STABLE"}
     if brpm < 8:
-        res.update({"color": "RED", "alert": "CRITICAL: RESPIRATORY DROP"})
-        dispatch_real_email("CRITICAL OVERDOSE RISK", f"{brpm} BRPM Detected")
- # 2. ERIS Hot Zone Logic
-    elif lat == 39.9612:
-        res.update({"color": "YELLOW", "alert": "ERIS: HOT ZONE ENTRY"})
-        dispatch_real_email("HOT ZONE BREACH", "Client entered Zone A (High Risk)")
- # 3. High Stress Logic
-    elif stress > 85:
-        res.update({"color": "YELLOW", "alert": "STRESS: ANXIETY SPIKE"})
-
+        res = {"color": "RED", "alert": "CRITICAL: RESPIRATORY DROP"}
+        save_to_db("alerts", {"type": "RED", "val": f"{brpm} BRPM", "time": str(datetime.now())})
     return res
 
+@app.get("/api/history/")
+def get_history():
+    with open(DB_FILE, "r") as f:
+        return json.load(f)
+
+@app.post("/api/billing/")
+def log_billing(client_name: str, miles: float):
+    entry = {
+        "client": client_name,
+        "receipt": f"B-LOG-{datetime.now().strftime('%M%S')}", 
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+        "miles": miles
+    }
+    save_to_db("billing", entry)
+    return entry
+
+@app.get("/api/export-csv/")
+def export_csv():
+    with open(DB_FILE, "r") as f:
+        data = json.load(f)
+    
+    output = io.StringIO()
+    output.write("ClientName,ReceiptID,Timestamp,Miles\n")
+    for b in data['billing']:
+        output.write(f"{b['client']},{b['receipt']},{b['timestamp']},{b['miles']}\n")
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=vigil_medicaid_report.csv"}
+    )
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-EOF
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
