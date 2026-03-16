@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vigil UI - Investor Demo</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #eef2f3; text-align: center; padding: 50px; }
+        .dashboard-card { background: white; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 12px; box-shadow: 0px 10px 20px rgba(0,0,0,0.1); }
+        .traffic-light { margin: 20px 0; padding: 20px; border-radius: 8px; background-color: #f8f9fa; border: 2px solid #dee2e6; font-size: 20px; font-weight: bold; }
+        .simulator-panel { background: #f1f3f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: left; border: 1px dashed #adb5bd; }
+        .slider-container { margin-bottom: 15px; }
+        input[type=range] { width: 100%; }
+        input[type=text], input[type=number] { padding: 10px; border-radius: 4px; border: 1px solid #ccc; width: 45%; margin-right: 5%; }
+        .btn { background-color: #0056b3; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 10px; }
+        .btn:hover { background-color: #004494; }
+        .btn-green { background-color: #28a745; }
+        .btn-green:hover { background-color: #218838; }
+        .receipt-box { margin-top: 15px; font-family: monospace; padding: 10px; border-radius: 4px; display: none; text-align: left;}
+    </style>
+</head>
+<body>
+    <div class="dashboard-card">
+        <h1>Vigil Role-Based Dashboard</h1>
+        <h3>Broken Ladder Recovery Systems Inc.</h3>
+        
+        <div class="traffic-light" id="status-display">
+            Awaiting Amulet Sensor Data...
+        </div>
+        
+        <div class="simulator-panel">
+            <h4 style="margin-top: 0; color: #495057;">🛠️ Amulet Hardware Simulator</h4>
+            
+            <div class="slider-container">
+                <label>Breathing Rate (BRPM): <strong id="brpm-val">14</strong></label>
+                <input type="range" id="brpm" min="0" max="30" value="14" oninput="document.getElementById('brpm-val').innerText=this.value">
+            </div>
+            
+            <div class="slider-container">
+                <label>Stress Level (GSR): <strong id="stress-val">40</strong></label>
+                <input type="range" id="stress" min="0" max="100" value="40" oninput="document.getElementById('stress-val').innerText=this.value">
+            </div>
+            <button class="btn" onclick="scanVitals()">Transmit Simulated Vitals</button>
+        </div>
+
+        <div class="simulator-panel">
+            <h4 style="margin-top: 0; color: #495057;">🚐 Medicaid Transportation Billing</h4>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <input type="text" id="trip-id" placeholder="Trip ID (e.g., TRP-992)">
+                <input type="number" id="trip-miles" placeholder="Miles (e.g., 12.5)">
+            </div>
+            <button class="btn btn-green" onclick="submitBilling()">Log Medicaid Trip</button>
+            
+            <div id="billing-receipt" class="receipt-box"></div>
+        </div>
+    </div>
+
+    <script>
+        async function scanVitals() {
+            const display = document.getElementById('status-display');
+            const brpm = document.getElementById('brpm').value;
+            const stress = document.getElementById('stress').value;
+            
+            display.innerHTML = "Transmitting to Python Engine...";
+            display.style.backgroundColor = "#e2e3e5"; 
+            
+            try {
+                const response = await fetch(`http://localhost:8000/api/status/?brpm=${brpm}&stress=${stress}`);
+                const data = await response.json();
+                
+                if (data.color === "GREEN") {
+                    display.innerHTML = "🟢 " + data.alert;
+                    display.style.backgroundColor = "#d4edda";
+                } else if (data.color === "YELLOW") {
+                    display.innerHTML = "🟡 " + data.alert;
+                    display.style.backgroundColor = "#fff3cd";
+                } else {
+                    display.innerHTML = "🔴 " + data.alert;
+                    display.style.backgroundColor = "#f8d7da";
+                }
+            } catch (error) {
+                display.innerHTML = "⚠️ ERROR: Is the Python Server running?";
+                display.style.backgroundColor = "#f8d7da";
+            }
+        }
+
+        async function submitBilling() {
+            const tripId = document.getElementById('trip-id').value || 'TRP-000';
+            const miles = document.getElementById('trip-miles').value || 0;
+            const receiptBox = document.getElementById('billing-receipt');
+            
+            receiptBox.style.display = "block";
+            receiptBox.innerHTML = "Processing securely via FHIR API...";
+            receiptBox.style.backgroundColor = "#fff3cd";
+            
+            try {
+                const response = await fetch(`http://localhost:8000/api/billing/?trip_id=${tripId}&miles=${miles}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.receipt) {
+                    receiptBox.innerHTML = `✅ <strong>SUCCESS</strong><br>Receipt: ${data.receipt}<br>Status: ${data.status}<br>Time: ${data.timestamp}`;
+                    receiptBox.style.backgroundColor = "#d4edda";
+                    receiptBox.style.color = "#155724";
+                } else if (data.error) {
+                    receiptBox.innerHTML = `🔒 <strong>SYSTEM LOCKED</strong><br>${data.error}`;
+                    receiptBox.style.backgroundColor = "#f8d7da";
+                }
+            } catch (error) {
+                receiptBox.innerHTML = "⚠️ ERROR: Backend Offline.";
+                receiptBox.style.backgroundColor = "#f8d7da";
+            }
+        }
+    </script>
+</body>
+</html>
