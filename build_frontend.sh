@@ -4,69 +4,59 @@ cat << 'HTML_EOF' > index.html
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vigil - Transparency Portal</title>
+    <title>Vigil - AI Training Hub</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0b0e14; color: #fff; margin: 0; padding: 0; }
-        nav { background: #161b22; padding: 15px 30px; border-bottom: 1px solid #30363d; display: flex; gap: 20px; }
-        nav a { color: #8b949e; text-decoration: none; cursor: pointer; font-size: 0.9em; }
-        nav a.active { color: #58a6ff; border-bottom: 2px solid #58a6ff; }
-        .container { padding: 40px; max-width: 900px; margin: 0 auto; }
-        .card { background: #161b22; padding: 30px; border-radius: 16px; border: 1px solid #30363d; margin-bottom: 20px; }
-        .sensor-row { display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid #21262d; }
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; }
-        .dot-on { background-color: #3fb950; box-shadow: 0 0 8px #3fb950; }
-        .dot-off { background-color: #8b949e; }
-        .badge { background: rgba(88, 166, 255, 0.1); color: #58a6ff; padding: 4px 8px; border-radius: 5px; font-size: 0.8em; }
+        body { font-family: 'Inter', sans-serif; background: #0b0e14; color: #fff; padding: 20px; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; }
+        .vortex-score { font-size: 4em; font-weight: bold; color: #58a6ff; text-align: center; }
+        .training-zone { margin-top: 20px; border: 1px dashed #d29922; padding: 20px; border-radius: 12px; text-align: center; }
+        .btn { padding: 12px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin: 5px; }
+        .btn-red { background: #da3633; color: white; }
+        .btn-green { background: #238636; color: white; }
     </style>
 </head>
 <body>
-
-<nav>
-    <a class="active">CLIENT HANDBOOK & PRIVACY</a>
-</nav>
-
-<div class="container">
-    <div class="card">
-        <h2 style="color:#58a6ff; margin-top:0;">🛡️ Privacy & Sensor Transparency</h2>
-        <p style="color:#8b949e; font-size:0.9em;">Live view of the Amulet Ring's active sensor suite. We only collect what is necessary to keep you safe.</p>
+    <h1>AI-Powered Command Center</h1>
+    <div class="dashboard">
+        <div class="card">
+            <div class="label">VORTEX INTEGRITY SCORE</div>
+            <div id="score" class="vortex-score">--</div>
+            <div id="risk" style="text-align:center; color:#8b949e;">Analyzing...</div>
+        </div>
         
-        <div id="sensor-list"></div>
-        
-        <div style="margin-top:20px; text-align:right;">
-            <small id="sync-time" style="color:#3fb950;"></small>
+        <div class="card training-zone">
+            <h3 style="color:#d29922;">Clinical Validation</h3>
+            <p style="font-size:0.8em; color:#8b949e;">Was the AI's current risk assessment accurate? Your feedback trains the model.</p>
+            <button class="btn btn-red" onclick="train(1)">Confirm Relapse Event</button>
+            <button class="btn btn-green" onclick="train(0)">Confirm Stability (False Alarm)</button>
+            <div id="train-status" style="margin-top:10px; font-size:0.8em;"></div>
         </div>
     </div>
 
-    <div class="card">
-        <h3>Why this data matters?</h3>
-        <p style="color:#8b949e; font-size:0.9em; line-height:1.6;">By sharing your Biometric data (PPG/GSR), our <strong>Sighted Project</strong> can detect a potential overdose or anxiety spike before it becomes a crisis. Your location is only used to help you navigate away from 'Hot Zones' via our ERIS system.</p>
-    </div>
-</div>
-
 <script>
-    async function loadPrivacy() {
-        const res = await fetch('http://localhost:8000/api/sensor-privacy/');
+    async function update() {
+        const res = await fetch('http://localhost:8000/api/vitals/');
         const data = await res.json();
-        
-        document.getElementById('sync-time').innerText = "Encrypted Sync: " + data.last_encryption_check;
-        document.getElementById('sensor-list').innerHTML = data.sensors.map(s => `
-            <div class="sensor-row">
-                <div>
-                    <span class="status-dot ${s.status === 'OFF' || s.status.includes('DISABLED') ? 'dot-off' : 'dot-on'}"></span>
-                    <strong>${s.name}</strong>
-                </div>
-                <div style="text-align:right;">
-                    <span class="badge">${s.status}</span>
-                    <div style="font-size:0.7em; color:#8b949e; margin-top:5px;">${s.reason}</div>
-                </div>
-            </div>
-        `).join('');
+        document.getElementById('score').innerText = data.integrity + "%";
+        document.getElementById('risk').innerText = "AI Probability: " + data.risk_prob;
     }
 
-    loadPrivacy();
-    setInterval(loadPrivacy, 5000); // Update every 5 seconds
+    async function train(outcome) {
+        const res = await fetch('http://localhost:8000/api/train/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({actual_outcome: outcome})
+        });
+        const data = await res.json();
+        document.getElementById('train-status').innerText = "Model Trained. Loss: " + data.loss.toFixed(4);
+        setTimeout(update, 500);
+    }
+
+    setInterval(update, 3000);
+    update();
 </script>
 </body>
 </html>
 HTML_EOF
-echo "✅ Privacy Frontend generated."
+echo "✅ Training UI generated."

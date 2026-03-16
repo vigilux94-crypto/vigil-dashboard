@@ -1,42 +1,76 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-import json
-import os
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+import pandas as pd
 from datetime import datetime
 
+# --- THE BRAIN ---
+class RelapsePredictor(nn.Module):
+    def __init__(self, input_size=8):
+        super().__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(input_size, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 1),
+            nn.Sigmoid()
+        )
+    def forward(self, x):
+        return self.fc(x)
+
+model = RelapsePredictor(input_size=8)
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+criterion = nn.BCELoss()
+
 app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Global variable to store the "Current" vector for training
+last_vector = None
 
-DB_FILE = "vigil_history.json"
-
-@app.get("/api/handbook/")
-def get_handbook():
+@app.get("/api/vitals/")
+def get_vitals():
+    global last_vector
+    # Generate fresh data
+    df = pd.DataFrame({
+        "HR": [np.random.normal(70, 5)], "HRV": [np.random.normal(50, 10)],
+        "Stress": [np.clip(np.random.normal(30, 15), 0, 100)], "Sleep": [np.random.randint(50, 100)],
+        "Activity": [np.random.randint(0, 100)], "Craving": [np.random.randint(0, 100)],
+        "Mood": [np.random.randint(1, 10)], "HighRiskLocation": [np.random.choice([0,1], p=[0.9,0.1])]
+    })
+    last_vector = torch.tensor(df.values, dtype=torch.float32)
+    
+    with torch.no_grad():
+        prediction = model(last_vector).item()
+    
     return {
-        "title": "Amulet & Vigil: Dignity First Handbook",
-        "philosophy": "We believe recovery is built on trust, not just tracking. This technology exists to catch you when you fall, not to push you down.",
-        "rights": [
-            "Right to Data Transparency: You can see what your P.O. sees.",
-            "Right to Privacy: Sensors focus on life-safety, not lifestyle monitoring.",
-            "Right to Response: You have the right to explain biometric spikes.",
-            "Right to Support: Every alert is a call for help, not a reason for punishment."
-        ],
-        "protocols": {
-            "haptic_alert": "If your ring vibrates, it means your vitals are unstable or you have a message. Double-tap the ring to acknowledge receipt.",
-            "emergency_dispatch": "In the event of a respiratory drop, emergency services and your peer support lead are notified automatically."
-        }
+        "integrity": round((1 - prediction) * 100, 1),
+        "risk_prob": round(prediction, 4),
+        "time": datetime.now().strftime("%H:%M:%S")
     }
 
-@app.post("/api/acknowledge/")
-def acknowledge_message(message_id: str):
-    print(f"\n[AMULET FEEDBACK] Client confirmed receipt of Message ID: {message_id}\n")
-    return {"status": "CONFIRMED", "timestamp": str(datetime.now())}
+@app.post("/api/train/")
+async def train_model(request: Request):
+    global last_vector
+    data = await request.json()
+    label = torch.tensor([[float(data['actual_outcome'])]], dtype=torch.float32)
+    
+    # Training Step
+    model.train()
+    optimizer.zero_grad()
+    output = model(last_vector)
+    loss = criterion(output, label)
+    loss.backward()
+    optimizer.step()
+    model.eval()
+    
+    print(f"[AI TRAINING] Outcome recorded: {data['actual_outcome']} | Loss: {loss.item():.4f}")
+    return {"status": "Model Updated", "loss": loss.item()}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
