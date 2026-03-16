@@ -17,7 +17,7 @@ app.add_middleware(
 
 # --- CONFIGURATION (PASTE YOUR APP PASSWORD BELOW) ---
 SENDER_EMAIL = "brokenladderrecoverysystems@gmail.com"
-APP_PASSWORD = "Sophia2012!" 
+APP_PASSWORD = "YOUR_APP_PASSWORD_HERE" 
 COUNSELOR_EMAIL = "brokenladderrecoverysystems@gmail.com"
 # -----------------------------------------------------
 
@@ -38,6 +38,7 @@ def dispatch_real_email(alert_type, value):
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
                 smtp.login(SENDER_EMAIL, APP_PASSWORD)
                 smtp.send_message(msg)
+            
             print(f"✅ EMAIL DISPATCHED: {alert_type}")
             last_alert_time = now.strftime("%H:%M")
         except Exception as e:
@@ -46,15 +47,18 @@ def dispatch_real_email(alert_type, value):
 @app.get("/api/status/")
 def check_status(brpm: int, stress: int, lat: float = 0.0):
     res = {"color": "GREEN", "alert": "VORTEX STABLE", "hw": "PAIRED", "bat": 88}
- # 1. Critical Overdose Logic
+    
+    # 1. Critical Overdose Logic
     if brpm < 8:
         res.update({"color": "RED", "alert": "CRITICAL: RESPIRATORY DROP"})
         dispatch_real_email("CRITICAL OVERDOSE RISK", f"{brpm} BRPM Detected")
- # 2. ERIS Hot Zone Logic
+    
+    # 2. ERIS Hot Zone Logic
     elif lat == 39.9612:
         res.update({"color": "YELLOW", "alert": "ERIS: HOT ZONE ENTRY"})
         dispatch_real_email("HOT ZONE BREACH", "Client entered Zone A (High Risk)")
- # 3. High Stress Logic
+        
+    # 3. High Stress Logic
     elif stress > 85:
         res.update({"color": "YELLOW", "alert": "STRESS: ANXIETY SPIKE"})
 
